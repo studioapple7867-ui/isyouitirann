@@ -320,6 +320,39 @@
     transition: background .2s;
   }
   .modal-close:hover { background: rgba(0,0,0,.55); }
+  .modal-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px; height: 44px;
+    background: rgba(0,0,0,.35);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: background .2s;
+  }
+  .modal-nav:hover { background: rgba(0,0,0,.6); }
+  .modal-nav.disabled { opacity: 0.2; pointer-events: none; }
+  .modal-nav-prev { left: 12px; }
+  .modal-nav-next { right: 12px; }
+  .modal-counter {
+    position: absolute;
+    bottom: 14px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,.35);
+    color: #fff;
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    z-index: 10;
+    pointer-events: none;
+  }
   .modal-img {
     width: 100%;
     max-height: 600px;
@@ -412,6 +445,9 @@
 <div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
   <div class="modal" id="modal">
     <button class="modal-close" onclick="closeModal()">×</button>
+    <button class="modal-nav modal-nav-prev" id="navPrev" onclick="navigateModal(-1)">‹</button>
+    <button class="modal-nav modal-nav-next" id="navNext" onclick="navigateModal(1)">›</button>
+    <div class="modal-counter" id="modalCounter"></div>
     <div id="modalContent"></div>
   </div>
 </div>
@@ -552,8 +588,29 @@ function render() {
   }).join('');
 }
 
+let currentFilteredItems = [];
+let currentModalIdx = 0;
+
 function openDetail(idx) {
-  const i = items[idx]; if (!i) return;
+  // 現在表示中のフィルター済みアイテムを取得
+  const q = document.getElementById('search').value.toLowerCase();
+  const fcol = document.getElementById('filterColor').value;
+  const fs = document.getElementById('filterSize').value;
+  currentFilteredItems = items.filter(i => {
+    if (selectedCat !== 'すべて' && i.cat !== selectedCat) return false;
+    if (q && !(i.name.toLowerCase().includes(q) || (i.note||'').toLowerCase().includes(q))) return false;
+    if (fcol && i.color !== fcol) return false;
+    if (fs && i.size !== fs) return false;
+    return true;
+  });
+  currentModalIdx = currentFilteredItems.findIndex(i => items.indexOf(i) === idx);
+  showModalItem();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function showModalItem() {
+  const i = currentFilteredItems[currentModalIdx];
+  if (!i) return;
   const imgHtml = i.photo
     ? `<img class="modal-img" src="${esc(i.photo)}" alt="${esc(i.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
       + `<div class="modal-img-placeholder" style="display:none">👗</div>`
@@ -568,11 +625,31 @@ function openDetail(idx) {
       ${i.note  ? `<div class="modal-note">${esc(i.note)}</div>` : ''}
     </div>
   `;
-  document.getElementById('modalOverlay').classList.add('open');
+  // カウンター更新
+  document.getElementById('modalCounter').textContent =
+    `${currentModalIdx + 1} / ${currentFilteredItems.length}`;
+  // 矢印の有効/無効
+  document.getElementById('navPrev').classList.toggle('disabled', currentModalIdx === 0);
+  document.getElementById('navNext').classList.toggle('disabled', currentModalIdx === currentFilteredItems.length - 1);
+}
+
+function navigateModal(dir) {
+  const next = currentModalIdx + dir;
+  if (next < 0 || next >= currentFilteredItems.length) return;
+  currentModalIdx = next;
+  showModalItem();
 }
 
 function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
 function handleOverlayClick(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
+
+// キーボード操作
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('modalOverlay').classList.contains('open')) return;
+  if (e.key === 'ArrowLeft') navigateModal(-1);
+  if (e.key === 'ArrowRight') navigateModal(1);
+  if (e.key === 'Escape') closeModal();
+});
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
